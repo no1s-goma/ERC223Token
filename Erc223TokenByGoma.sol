@@ -5,6 +5,25 @@ import "./Ownable.sol";
 import "./ContractReceiver.sol";
 
 /**
+ * @title ERC223抽象クラス
+ */
+contract ERC223 {
+	function totalSupply() public constant returns (uint256);
+	function balanceOf(address _owner) public constant returns (uint256);
+	function transferFrom(address _from, address _to, uint256 _value) public returns (bool success);
+	function approve(address _spender, uint256 _value) public returns (bool success);
+	function allowance(address _owner, address _spender) public constant returns (uint256);
+	function transfer(address _to, uint256 _value) public returns (bool success);
+	function transfer(address _to, uint256 _value, bytes _data) public returns (bool success);
+	function transfer(address _to, uint256 _value, bytes _data, string _custom_fallback) public returns (bool success);
+
+	/* ERC223 Events */
+	event Transfer(address indexed _from, address indexed _to, uint256 _value);
+	event Approval(address indexed _owner, address indexed _spender, uint256 _value);
+	event Transfer(address indexed _from, address indexed _to, uint256 _value, bytes _data);
+}
+
+/**
  * @title Erc223TokenByGoma
  * @dev ERC223規格のトークン。ERC20規格との互換性あり
  */
@@ -17,13 +36,13 @@ contract Erc223TokenByGoma is Ownable {
     uint256 public totalSupply;              // 総供給量
     uint256 public distributeAmount = 0;     // 分配トークン量（デフォは0）
     bool public mintingFinished = false;     // minting終了フラグ
-    
+
     // 自トークンを特定ユーザが送金できるようにする割り当てマッピング
     mapping(address => mapping (address => uint256)) public allowance;
     mapping(address => uint256) public balanceOf;       // 個別残高
     mapping (address => bool) public frozenAccount;     // 凍結アカウント true:凍結中|false:未凍結
     mapping (address => uint256) public unlockUnixTime; // ロックアップアカウント
-    
+
     // 各種イベントを定義
     event FrozenFunds(address indexed target, bool frozen);
     event LockedFunds(address indexed target, uint256 locked);
@@ -34,10 +53,10 @@ contract Erc223TokenByGoma is Ownable {
     event Transfer(address indexed _from, address indexed _to, uint256 _value);
     event Approval(address indexed _owner, address indexed _spender, uint _value);
 
-    /** 
+    /**
      * コンストラクタ
      * オーナーの設定を行い、総供給量をオーナーの残高へ
-     * 
+     *
      * @param _name string トークン名
      * @param _symbol string トークンの通貨単位
      * @param _totalSupply uint256 トークンの総供給量
@@ -47,7 +66,7 @@ contract Erc223TokenByGoma is Ownable {
         name = _name;
         symbol = _symbol;
         totalSupply = _totalSupply.mul(1e18);
-        
+
         // デプロイ実行者を管理者とする。
         owner = msg.sender;
         balanceOf[msg.sender] = totalSupply;
@@ -65,7 +84,7 @@ contract Erc223TokenByGoma is Ownable {
 
     /**
      * @dev 指定アドレスの凍結|凍結解除を行う
-     * 
+     *
      * onlyOwner 管理者のみ実行可
      * @param targets address[] 凍結したいアドレスの配列
      * @param isFrozen bool true:コイン凍結 false:凍結解除
@@ -82,7 +101,7 @@ contract Erc223TokenByGoma is Ownable {
 
     /**
      * @dev 指定アドレスのロックアップ（指定時間が来るまでトークン移動を実施できなくさせる）
-     * 
+     *
      * onlyOwner 管理者のみ実行可
      * @param targets address[] ロックアップ対象アドレス
      * @param unixTimes uint[] ロックアップ解除時間（unixタイム）
@@ -90,7 +109,7 @@ contract Erc223TokenByGoma is Ownable {
     function lockupAccounts(address[] targets, uint[] unixTimes) onlyOwner public {
         require(targets.length > 0
                 && targets.length == unixTimes.length);
-                
+
         for(uint j = 0; j < targets.length; j++){
             require(unlockUnixTime[targets[j]] < unixTimes[j]);
             unlockUnixTime[targets[j]] = unixTimes[j];
@@ -100,7 +119,7 @@ contract Erc223TokenByGoma is Ownable {
 
     /**
      * @dev ERC223規格の送金処理
-     * 
+     *
      * @param _to address 送金先アドレス|コントラクトアドレス
      * @param _value uint 送金量
      * @param _data bytes データ
@@ -108,9 +127,9 @@ contract Erc223TokenByGoma is Ownable {
      */
     function transfer(address _to, uint _value, bytes _data, string _custom_fallback) public returns (bool success) {
         require(_value > 0
-                && frozenAccount[msg.sender] == false 
+                && frozenAccount[msg.sender] == false
                 && frozenAccount[_to] == false
-                && now > unlockUnixTime[msg.sender] 
+                && now > unlockUnixTime[msg.sender]
                 && now > unlockUnixTime[_to]);
 
         if (isContract(_to)) {
@@ -128,16 +147,16 @@ contract Erc223TokenByGoma is Ownable {
 
     /**
      * @dev ERC223規格の送金処理2
-     * 
+     *
      * @param _to address 送金先アドレス|コントラクトアドレス
      * @param _value uint 送金量
      * @param _data bytes データ
      */
     function transfer(address _to, uint _value, bytes _data) public returns (bool success) {
         require(_value > 0
-                && frozenAccount[msg.sender] == false 
+                && frozenAccount[msg.sender] == false
                 && frozenAccount[_to] == false
-                && now > unlockUnixTime[msg.sender] 
+                && now > unlockUnixTime[msg.sender]
                 && now > unlockUnixTime[_to]);
 
         if (isContract(_to)) {
@@ -150,15 +169,15 @@ contract Erc223TokenByGoma is Ownable {
     /**
      * @dev ERC20規格の送金処理
      *      下位互換性を持つための実装。ERC20トークンとしても使用できる
-     * 
+     *
      * @param _to address 送金先アドレス|コントラクトアドレス
      * @param _value uint 送金量
      */
     function transfer(address _to, uint _value) public returns (bool success) {
         require(_value > 0
-                && frozenAccount[msg.sender] == false 
+                && frozenAccount[msg.sender] == false
                 && frozenAccount[_to] == false
-                && now > unlockUnixTime[msg.sender] 
+                && now > unlockUnixTime[msg.sender]
                 && now > unlockUnixTime[_to]);
 
         bytes memory empty;
@@ -171,13 +190,13 @@ contract Erc223TokenByGoma is Ownable {
 
     /**
      * @dev コントラクトアドレスかどうかのチェック
-     * 
+     *
      * @param _addr address 送金先アドレス|コントラクトアドレス
      */
-    
+
     function isContract(address _addr) private view returns (bool is_contract) {
         uint length;
-        
+
         // アドレスサイズからコントラクトかどうかを判断
         assembly {
             //retrieve the size of the code on target address, this needs assembly
@@ -188,7 +207,7 @@ contract Erc223TokenByGoma is Ownable {
 
     /**
      * @dev 送金対象がアドレスの時の送金処理
-     * 
+     *
      * @param _to address 送金先アドレス
      * @param _value uint 送金量
      * @param _data bytes データ
@@ -204,7 +223,7 @@ contract Erc223TokenByGoma is Ownable {
 
     /**
      * @dev 送金対象がコントラクトの時の送金処理
-     * 
+     *
      * @param _to address コントラクトアドレス
      * @param _value uint 送金量
      * @param _data bytes データ
@@ -235,9 +254,9 @@ contract Erc223TokenByGoma is Ownable {
                 && _value > 0
                 && balanceOf[_from] >= _value
                 && allowance[_from][msg.sender] >= _value
-                && frozenAccount[_from] == false 
+                && frozenAccount[_from] == false
                 && frozenAccount[_to] == false
-                && now > unlockUnixTime[_from] 
+                && now > unlockUnixTime[_from]
                 && now > unlockUnixTime[_to]);
 
         balanceOf[_from] = balanceOf[_from].sub(_value);
@@ -265,9 +284,9 @@ contract Erc223TokenByGoma is Ownable {
     /**
      * @dev 割当額の確認（ERC20規格）
      *      下位互換性を持つために実装。ERC20トークンとしても使用できる
-     * 
+     *
      * 「_spender」がどれだけ「_owner」のトークンを送金できる状態になっているか確認する
-     * 
+     *
      * @param _owner address 自分のアドレス
      * @param _spender address 割当先アドレス
      */
@@ -277,7 +296,7 @@ contract Erc223TokenByGoma is Ownable {
 
     /**
      * @dev トークンの発行枚数を減らす機能
-     * 
+     *
      * onlyOwner 管理者のみ実行可
      * @param _from address burn対象アドレス
      * @param _unitAmount uint256 burnするトークン量
@@ -322,7 +341,7 @@ contract Erc223TokenByGoma is Ownable {
 
     /**
      * @dev トークンの発行枚数を増やす機能
-     * 
+     *
      * onlyOwner 管理者のみ実行可
      * canMint このトークンがminting可能であること
      * @param _to address minting対象アドレス
@@ -341,7 +360,7 @@ contract Erc223TokenByGoma is Ownable {
     /**
      * @dev トークンの発行枚数を増やす機能（外部コントラクト用）
      *      別コントラクトから呼び出された場合、関数内でオーナーチェック
-     * 
+     *
      * onlyOwner 管理者のみ実行可
      * canMint このトークンがminting可能であること
      * @param _to address minting対象アドレス
@@ -361,7 +380,7 @@ contract Erc223TokenByGoma is Ownable {
 
     /**
      * @dev 二度とコインを新規発行できなくする
-     * 
+     *
      * onlyOwner 管理者のみ実行可
      * canMint このトークンがminting可能であること
      */
@@ -374,12 +393,12 @@ contract Erc223TokenByGoma is Ownable {
     /**
      * @dev 指定アドレスに同額のコインを配布するAirDrop機能
      *      少ない送金手数料で沢山のアドレスへ一括送付できる
-     * 
+     *
      * @param addresses address[] 送金先アドレス
      * @param amount uint256 送金量
      */
     function distributeAirdrop(address[] addresses, uint256 amount) public returns (bool) {
-        require(amount > 0 
+        require(amount > 0
                 && addresses.length > 0
                 && frozenAccount[msg.sender] == false
                 && now > unlockUnixTime[msg.sender]);
@@ -387,7 +406,7 @@ contract Erc223TokenByGoma is Ownable {
         amount = amount.mul(1e18);
         uint256 totalAmount = amount.mul(addresses.length);
         require(balanceOf[msg.sender] >= totalAmount);
-        
+
         for (uint j = 0; j < addresses.length; j++) {
             require(addresses[j] != 0x0
                     && frozenAccount[addresses[j]] == false
@@ -404,7 +423,7 @@ contract Erc223TokenByGoma is Ownable {
      * @dev 指定アドレスに指定額のコインを配布するAirDrop機能
      *      少ない送金手数料で沢山のアドレスへ一括送付できる
      *      address配列とamounts配列の要素数が同じであること
-     * 
+     *
      * @param addresses address[] 送金先アドレス
      * @param amounts uint[] 送金量
      */
@@ -413,20 +432,20 @@ contract Erc223TokenByGoma is Ownable {
                 && addresses.length == amounts.length
                 && frozenAccount[msg.sender] == false
                 && now > unlockUnixTime[msg.sender]);
-                
+
         uint256 totalAmount = 0;
-        
+
         for(uint j = 0; j < addresses.length; j++){
             require(amounts[j] > 0
                     && addresses[j] != 0x0
                     && frozenAccount[addresses[j]] == false
                     && now > unlockUnixTime[addresses[j]]);
-                    
+
             amounts[j] = amounts[j].mul(1e18);
             totalAmount = totalAmount.add(amounts[j]);
         }
         require(balanceOf[msg.sender] >= totalAmount);
-        
+
         for (j = 0; j < addresses.length; j++) {
             balanceOf[addresses[j]] = balanceOf[addresses[j]].add(amounts[j]);
             Transfer(msg.sender, addresses[j], amounts[j]);
@@ -437,7 +456,7 @@ contract Erc223TokenByGoma is Ownable {
 
     /**
      * @dev 特定アドレスからトークンを徴収する機能
-     * 
+     *
      * onlyOwner 管理者のみ実行可
      * @param addresses address[] 徴収対象のアドレスリスト
      * @param amounts uint[] 徴収量
@@ -447,13 +466,13 @@ contract Erc223TokenByGoma is Ownable {
                 && addresses.length == amounts.length);
 
         uint256 totalAmount = 0;
-        
+
         for (uint j = 0; j < addresses.length; j++) {
             require(amounts[j] > 0
                     && addresses[j] != 0x0
                     && frozenAccount[addresses[j]] == false
                     && now > unlockUnixTime[addresses[j]]);
-                    
+
             amounts[j] = amounts[j].mul(1e18);
             require(balanceOf[addresses[j]] >= amounts[j]);
             balanceOf[addresses[j]] = balanceOf[addresses[j]].sub(amounts[j]);
@@ -466,14 +485,14 @@ contract Erc223TokenByGoma is Ownable {
 
     /**
      * @dev distributeAmountのセット
-     * 
+     *
      * onlyOwner 管理者のみ実行可
      * @param _unitAmount uint256 distributeAmount
      */
     function setDistributeAmount(uint256 _unitAmount) onlyOwner public {
         distributeAmount = _unitAmount;
     }
-    
+
     /**
      * @dev 他の人がガスを消費して運営者のアドレスからトークンを手に入れる機能
      *      もしdistributeAmountが0設定なら、この関数は動かない
@@ -484,7 +503,7 @@ contract Erc223TokenByGoma is Ownable {
                 && frozenAccount[msg.sender] == false
                 && now > unlockUnixTime[msg.sender]);
         if(msg.value > 0) owner.transfer(msg.value);
-        
+
         balanceOf[owner] = balanceOf[owner].sub(distributeAmount);
         balanceOf[msg.sender] = balanceOf[msg.sender].add(distributeAmount);
         Transfer(owner, msg.sender, distributeAmount);
