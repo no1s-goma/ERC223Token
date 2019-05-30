@@ -27,7 +27,7 @@ contract ERC223 {
  * @title Erc223TokenByGoma
  * @dev ERC223規格のトークン。ERC20規格との互換性あり
  */
-contract Erc223TokenByGoma is Ownable {
+contract Erc223TokenByGoma is ERC223, Ownable {
     using SafeMath for uint256; // バリデーション付き四則演算をuint256で使用する
 
     string public name;                      // トークン名
